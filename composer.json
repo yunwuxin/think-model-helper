@@ -14,7 +14,8 @@
         "symfony/class-loader": "^2.3|^3.0",
         "topthink/think-migration": "^1.0",
         "phpdocumentor/reflection-docblock": "^3.1",
-        "topthink/think-helper": "^1.0"
+        "topthink/think-helper": "^1.0",
+        "topthink/think-installer": ">=1.0.10"
     },
     "require-dev": {
         "topthink/framework": "^5.0",
