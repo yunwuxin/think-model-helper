@@ -245,16 +245,16 @@ class Command extends \think\console\Command
                         $return = $method->invoke($model);
                         if ($return instanceof Relation) {
                             $relationInfo = $return->getRelationInfo();
-
+                            $name         = Loader::parseName($methodName);
                             switch ($relationInfo['type']) {
                                 case Relation::HAS_ONE:
                                 case Relation::BELONGS_TO:
-                                    $this->setProperty($methodName, "\\" . $relationInfo['model'], true, null);
+                                    $this->setProperty($name, "\\" . $relationInfo['model'], true, null);
                                     break;
                                 case Relation::HAS_MANY:
                                 case Relation::HAS_MANY_THROUGH:
                                 case Relation::BELONGS_TO_MANY:
-                                    $this->setProperty($methodName, "\\" . "{$relationInfo['model']}[]", true, null);
+                                    $this->setProperty($name, "\\" . "{$relationInfo['model']}[]", true, null);
                                     break;
                             }
 
