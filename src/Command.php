@@ -22,6 +22,11 @@ use phpDocumentor\Reflection\Types\Context;
 use phpDocumentor\Reflection\DocBlock\Serializer as DocBlockSerializer;
 use phpDocumentor\Reflection\Types\Self_;
 use phpDocumentor\Reflection\Types\Static_;
+use think\model\relation\BelongsTo;
+use think\model\relation\BelongsToMany;
+use think\model\relation\HasMany;
+use think\model\relation\HasManyThrough;
+use think\model\relation\HasOne;
 use phpDocumentor\Reflection\Types\This;
 use Symfony\Component\ClassLoader\ClassMapGenerator;
 use think\Config;
@@ -243,21 +248,16 @@ class Command extends \think\console\Command
                     //关联对象
                     try {
                         $return = $method->invoke($model);
+
                         if ($return instanceof Relation) {
-                            $relationInfo = $return->getRelationInfo();
-                            $name         = Loader::parseName($methodName);
-                            switch ($relationInfo['type']) {
-                                case Relation::HAS_ONE:
-                                case Relation::BELONGS_TO:
-                                    $this->setProperty($name, "\\" . $relationInfo['model'], true, null);
-                                    break;
-                                case Relation::HAS_MANY:
-                                case Relation::HAS_MANY_THROUGH:
-                                case Relation::BELONGS_TO_MANY:
-                                    $this->setProperty($name, "\\" . "{$relationInfo['model']}[]", true, null);
-                                    break;
+                            $name = Loader::parseName($methodName);
+                            if ($return instanceof HasOne || $return instanceof BelongsTo) {
+                                $this->setProperty($name, "\\" . $return->getModel(), true, null);
                             }
 
+                            if ($return instanceof HasMany || $return instanceof HasManyThrough || $return instanceof BelongsToMany) {
+                                $this->setProperty($name, "\\" . "{$return->getModel()}[]", true, null);
+                            }
                         }
                     } catch (\Exception $e) {
 
