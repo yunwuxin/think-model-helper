@@ -48,6 +48,8 @@ class Command extends \think\console\Command
 
     protected $overwrite = false;
 
+    protected $reset = false;
+
     protected function configure()
     {
         $this
@@ -55,6 +57,7 @@ class Command extends \think\console\Command
             ->addArgument('model', Argument::OPTIONAL | Argument::IS_ARRAY, 'Which models to include', [])
             ->addOption('dir', 'D', Option::VALUE_OPTIONAL | Option::VALUE_IS_ARRAY, 'The model dir', [])
             ->addOption('ignore', 'I', Option::VALUE_OPTIONAL, 'Which models to ignore', '')
+            ->addOption('reset', 'R', Option::VALUE_NONE, 'Remove the original phpdocs instead of appending')
             ->addOption('overwrite', 'O', Option::VALUE_NONE, 'Overwrite the phpdocs');
     }
 
@@ -69,6 +72,8 @@ class Command extends \think\console\Command
         $ignore = $input->getOption('ignore');
 
         $this->overwrite = $input->getOption('overwrite');
+
+        $this->reset = $input->getOption('reset');
 
         $this->generateDocs($model, $ignore);
 
@@ -116,9 +121,9 @@ class Command extends \think\console\Command
                         continue;
                     }
                     $model = new $name;
-
-                    $this->getPropertiesFromTable($model);
-
+                    if ($this->supportedDatabase()) {
+                        $this->getPropertiesFromTable($model);
+                    }
                     $this->getPropertiesFromMethods($name, $model);
                     $this->createPhpDocs($name);
                     $ignore[] = $name;
@@ -128,6 +133,11 @@ class Command extends \think\console\Command
             }
 
         }
+    }
+
+    protected function supportedDatabase()
+    {
+        return class_exists(AdapterFactory::class);
     }
 
     /**
@@ -289,27 +299,28 @@ class Command extends \think\console\Command
 
         $properties = [];
         $tags       = [];
-        try {
-            //读取文件注释
-            $phpdoc = DocBlockFactory::createInstance()->create($reflection, $context);
+        if (!$this->reset) {
+            try {
+                //读取文件注释
+                $phpdoc = DocBlockFactory::createInstance()->create($reflection, $context);
 
-            $summary    = $phpdoc->getSummary();
-            $properties = [];
-            $tags       = $phpdoc->getTags();
-            foreach ($tags as $key => $tag) {
-                if ($tag instanceof DocBlock\Tags\Property || $tag instanceof DocBlock\Tags\PropertyRead || $tag instanceof DocBlock\Tags\PropertyWrite) {
-                    if ($this->overwrite && array_key_exists($tag->getVariableName(), $this->properties)) {
-                        //覆盖原来的
-                        unset($tags[$key]);
-                    } else {
-                        $properties[] = $tag->getVariableName();
+                $summary    = $phpdoc->getSummary();
+                $properties = [];
+                $tags       = $phpdoc->getTags();
+                foreach ($tags as $key => $tag) {
+                    if ($tag instanceof DocBlock\Tags\Property || $tag instanceof DocBlock\Tags\PropertyRead || $tag instanceof DocBlock\Tags\PropertyWrite) {
+                        if ($this->overwrite && array_key_exists($tag->getVariableName(), $this->properties)) {
+                            //覆盖原来的
+                            unset($tags[$key]);
+                        } else {
+                            $properties[] = $tag->getVariableName();
+                        }
                     }
                 }
+            } catch (\InvalidArgumentException $e) {
+
             }
-        } catch (\InvalidArgumentException $e) {
-
         }
-
         foreach ($this->properties as $name => $property) {
             if (in_array($name, $properties)) {
                 continue;
