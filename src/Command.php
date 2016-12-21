@@ -27,6 +27,8 @@ use think\model\relation\BelongsToMany;
 use think\model\relation\HasMany;
 use think\model\relation\HasManyThrough;
 use think\model\relation\HasOne;
+use think\model\relation\MorphMany;
+use think\model\relation\MorphTo;
 use phpDocumentor\Reflection\Types\This;
 use Symfony\Component\ClassLoader\ClassMapGenerator;
 use think\Config;
@@ -267,6 +269,10 @@ class Command extends \think\console\Command
 
                             if ($return instanceof HasMany || $return instanceof HasManyThrough || $return instanceof BelongsToMany) {
                                 $this->setProperty($name, "\\" . "{$return->getModel()}[]", true, null);
+                            }
+
+                            if ($return instanceof MorphTo || $return instanceof MorphMany) {
+                                $this->setProperty($name, "mixed", true, null);
                             }
                         }
                     } catch (\Exception $e) {
