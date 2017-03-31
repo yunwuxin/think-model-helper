@@ -249,13 +249,17 @@ class Command extends \think\console\Command
                 } elseif (Str::startsWith($methodName, 'set') && Str::endsWith(
                         $methodName,
                         'Attr'
-                    ) && $method !== 'setAttr'
+                    ) && $methodName !== 'setAttr'
                 ) {
                     //修改器
-                    $name = Loader::parseName(substr($method, 3, -4));
+                    $name = Loader::parseName(substr($methodName, 3, -4));
                     if (!empty($name)) {
                         $this->setProperty($name, null, null, true);
                     }
+
+                } elseif (Str::startsWith($methodName, 'scope')) {
+                    //查询访问
+                    //todo
                 } else {
                     //关联对象
                     try {
