@@ -12,9 +12,3 @@
 \think\Console::addDefaultCommands([
     \yunwuxin\model\helper\Command::class
 ]);
-
-return [
-    'locations' => [
-        'model'
-    ]
-];

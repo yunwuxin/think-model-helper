@@ -22,6 +22,7 @@ use phpDocumentor\Reflection\Types\Context;
 use phpDocumentor\Reflection\DocBlock\Serializer as DocBlockSerializer;
 use phpDocumentor\Reflection\Types\Self_;
 use phpDocumentor\Reflection\Types\Static_;
+use ReflectionClass;
 use think\model\relation\BelongsTo;
 use think\model\relation\BelongsToMany;
 use think\model\relation\HasMany;
@@ -66,7 +67,7 @@ class Command extends \think\console\Command
     protected function execute(Input $input, Output $output)
     {
         $this->dirs = array_merge(
-            (array) Config::get('model-helper.locations'),
+            ['model'],
             $input->getOption('dir')
         );
 
@@ -124,7 +125,7 @@ class Command extends \think\console\Command
                     }
                     $model = new $name;
                     if ($this->supportedDatabase()) {
-                        $this->getPropertiesFromTable($model);
+                        $this->getPropertiesFromTable($name, $model);
                     }
                     $this->getPropertiesFromMethods($name, $model);
                     $this->createPhpDocs($name);
@@ -172,10 +173,15 @@ class Command extends \think\console\Command
 
     /**
      * 从数据库读取字段信息
-     * @param Model $model
+     * @param string $class
+     * @param Model  $model
      */
-    protected function getPropertiesFromTable(Model $model)
+    protected function getPropertiesFromTable($class, Model $model)
     {
+        $properties = (new ReflectionClass($class))->getDefaultProperties();
+
+        $dateFormat = empty($properties['dateFormat']) ? $model->db()->getConnection()->getConfig()['datetime_format'] : $properties['dateFormat'];
+
         $table = $this->getTable($model);
 
         $columns = $table->getColumns();
@@ -183,36 +189,77 @@ class Command extends \think\console\Command
         if ($columns) {
             foreach ($columns as $column) {
                 $name = $column->getName();
-                $type = $column->getType();
-                switch ($type) {
-                    case 'string':
-                    case 'char':
-                    case 'text':
-                    case 'timestamp':
-                    case 'date':
-                    case 'time':
-                    case 'guid':
-                    case 'datetimetz':
-                    case 'datetime':
-                        $type = 'string';
-                        break;
-                    case 'integer':
-                    case 'biginteger':
-                    case 'smallint':
-                        $type = 'integer';
-                        break;
-                    case 'decimal':
-                    case 'float':
-                        $type = 'float';
-                        break;
-                    case 'boolean':
-                        $type = 'boolean';
-                        break;
-                    default:
-                        $type = 'mixed';
-                        break;
-                }
 
+                if (in_array($name, [$properties['createTime'], $properties['updateTime']])) {
+                    if (false !== strpos($dateFormat, '\\')) {
+                        $type = "\\" . $dateFormat;
+                    } else {
+                        $type = 'string';
+                    }
+                } elseif (!empty($properties['type'][$name])) {
+
+                    $type = $properties['type'][$name];
+
+                    if (is_array($type)) {
+                        list($type, $param) = $type;
+                    } elseif (strpos($type, ':')) {
+                        list($type, $param) = explode(':', $type, 2);
+                    }
+
+                    switch ($type) {
+                        case 'timestamp':
+                        case 'datetime':
+                            $format = !empty($param) ? $param : $dateFormat;
+
+                            if (false !== strpos($format, '\\')) {
+                                $type = "\\" . $format;
+                            } else {
+                                $type = 'string';
+                            }
+                            break;
+                        case 'json':
+                            $type = 'array';
+                            break;
+                        case 'serialize':
+                            $type = 'mixed';
+                            break;
+                        default:
+                            if (false !== strpos($type, '\\')) {
+                                $type = "\\" . $type;
+                            }
+
+                    }
+                } else {
+                    $type = $column->getType();
+                    switch ($type) {
+                        case 'string':
+                        case 'char':
+                        case 'text':
+                        case 'timestamp':
+                        case 'date':
+                        case 'time':
+                        case 'guid':
+                        case 'datetimetz':
+                        case 'datetime':
+                            $type = 'string';
+                            break;
+                        case 'integer':
+                        case 'biginteger':
+                        case 'smallint':
+                            $type = 'integer';
+                            break;
+                        case 'decimal':
+                        case 'float':
+                            $type = 'float';
+                            break;
+                        case 'boolean':
+                            $type = 'boolean';
+                            break;
+                        default:
+                            $type = 'mixed';
+                            break;
+                    }
+                }
                 $comment = $column->getComment();
                 $this->setProperty($name, $type, true, true, $comment);
 
@@ -227,11 +274,12 @@ class Command extends \think\console\Command
      */
     protected function getPropertiesFromMethods($class, $model)
     {
-        $methods = (new \ReflectionClass($class))->getMethods();
+        $classRef = new \ReflectionClass($class);
+        $methods  = $classRef->getMethods();
 
         foreach ($methods as $method) {
 
-            if ($method->getDeclaringClass()->getName() == $class) {
+            if ($method->getDeclaringClass()->getName() == $classRef->getName()) {
 
                 $methodName = $method->getName();
                 if (Str::startsWith($methodName, 'get') && Str::endsWith(
@@ -260,7 +308,7 @@ class Command extends \think\console\Command
                 } elseif (Str::startsWith($methodName, 'scope')) {
                     //查询访问
                     //todo
-                } else {
+                } elseif ($method->isPublic() && $method->getNumberOfRequiredParameters() == 0) {
                     //关联对象
                     try {
                         $return = $method->invoke($model);
@@ -280,7 +328,7 @@ class Command extends \think\console\Command
                             }
                         }
                     } catch (\Exception $e) {
-
+                    } catch (\Throwable $e) {
                     }
                 }
             }
@@ -410,7 +458,7 @@ class Command extends \think\console\Command
         } catch (\InvalidArgumentException $e) {
 
         }
-        return (string) $type;
+        return is_null($type) ? null : (string) $type;
     }
 
     /**
