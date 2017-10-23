@@ -29,6 +29,7 @@ use think\model\relation\HasMany;
 use think\model\relation\HasManyThrough;
 use think\model\relation\HasOne;
 use think\model\relation\MorphMany;
+use think\model\relation\MorphOne;
 use think\model\relation\MorphTo;
 use phpDocumentor\Reflection\Types\This;
 use Symfony\Component\ClassLoader\ClassMapGenerator;
@@ -315,15 +316,15 @@ class Command extends \think\console\Command
 
                         if ($return instanceof Relation) {
                             $name = Loader::parseName($methodName);
-                            if ($return instanceof HasOne || $return instanceof BelongsTo) {
+                            if ($return instanceof HasOne || $return instanceof BelongsTo || $return instanceof MorphOne) {
                                 $this->setProperty($name, "\\" . $return->getModel(), true, null);
                             }
 
-                            if ($return instanceof HasMany || $return instanceof HasManyThrough || $return instanceof BelongsToMany) {
+                            if ($return instanceof HasMany || $return instanceof HasManyThrough || $return instanceof BelongsToMany || $return instanceof MorphMany) {
                                 $this->setProperty($name, "\\" . "{$return->getModel()}[]", true, null);
                             }
 
-                            if ($return instanceof MorphTo || $return instanceof MorphMany) {
+                            if ($return instanceof MorphTo) {
                                 $this->setProperty($name, "mixed", true, null);
                             }
                         }
