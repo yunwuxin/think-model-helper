@@ -112,6 +112,7 @@ class Command extends \think\console\Command
             }
 
             $this->properties = [];
+            $this->methods    = [];
 
             if (class_exists($name)) {
                 try {
