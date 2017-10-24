@@ -23,17 +23,16 @@ use phpDocumentor\Reflection\DocBlock\Serializer as DocBlockSerializer;
 use phpDocumentor\Reflection\Types\Self_;
 use phpDocumentor\Reflection\Types\Static_;
 use ReflectionClass;
+use ReflectionMethod;
 use think\model\relation\BelongsTo;
 use think\model\relation\BelongsToMany;
 use think\model\relation\HasMany;
 use think\model\relation\HasManyThrough;
 use think\model\relation\HasOne;
 use think\model\relation\MorphMany;
-use think\model\relation\MorphOne;
 use think\model\relation\MorphTo;
 use phpDocumentor\Reflection\Types\This;
 use Symfony\Component\ClassLoader\ClassMapGenerator;
-use think\Config;
 use think\console\Input;
 use think\console\input\Argument;
 use think\console\input\Option;
@@ -49,6 +48,8 @@ class Command extends \think\console\Command
     protected $dirs = [];
 
     protected $properties = [];
+
+    protected $methods = [];
 
     protected $overwrite = false;
 
@@ -307,8 +308,15 @@ class Command extends \think\console\Command
                     }
 
                 } elseif (Str::startsWith($methodName, 'scope')) {
-                    //查询访问
-                    //todo
+                    //查询范围
+                    $name = Loader::parseName(substr($methodName, 5), 1, false);
+
+                    if (!empty($name)) {
+                        $args = $this->getParameters($method);
+                        array_shift($args);
+                        $this->setMethod($name, "\\think\\db\\Query", $args);
+                    }
+
                 } elseif ($method->isPublic() && $method->getNumberOfRequiredParameters() == 0) {
                     //关联对象
                     try {
@@ -316,15 +324,15 @@ class Command extends \think\console\Command
 
                         if ($return instanceof Relation) {
                             $name = Loader::parseName($methodName);
-                            if ($return instanceof HasOne || $return instanceof BelongsTo || $return instanceof MorphOne) {
+                            if ($return instanceof HasOne || $return instanceof BelongsTo) {
                                 $this->setProperty($name, "\\" . $return->getModel(), true, null);
                             }
 
-                            if ($return instanceof HasMany || $return instanceof HasManyThrough || $return instanceof BelongsToMany || $return instanceof MorphMany) {
+                            if ($return instanceof HasMany || $return instanceof HasManyThrough || $return instanceof BelongsToMany) {
                                 $this->setProperty($name, "\\" . "{$return->getModel()}[]", true, null);
                             }
 
-                            if ($return instanceof MorphTo) {
+                            if ($return instanceof MorphTo || $return instanceof MorphMany) {
                                 $this->setProperty($name, "mixed", true, null);
                             }
                         }
@@ -357,6 +365,7 @@ class Command extends \think\console\Command
         $typeResolver       = new TypeResolver($fqsenResolver);
 
         $properties = [];
+        $methods    = [];
         $tags       = [];
         if (!$this->reset) {
             try {
@@ -365,6 +374,7 @@ class Command extends \think\console\Command
 
                 $summary    = $phpdoc->getSummary();
                 $properties = [];
+                $methods    = [];
                 $tags       = $phpdoc->getTags();
                 foreach ($tags as $key => $tag) {
                     if ($tag instanceof DocBlock\Tags\Property || $tag instanceof DocBlock\Tags\PropertyRead || $tag instanceof DocBlock\Tags\PropertyWrite) {
@@ -373,6 +383,13 @@ class Command extends \think\console\Command
                             unset($tags[$key]);
                         } else {
                             $properties[] = $tag->getVariableName();
+                        }
+                    } elseif ($tag instanceof DocBlock\Tags\Method) {
+                        if ($this->overwrite && array_key_exists($tag->getMethodName(), $this->methods)) {
+                            //覆盖原来的
+                            unset($tags[$key]);
+                        } else {
+                            $methods[] = $tag->getMethodName();
                         }
                     }
                 }
@@ -395,6 +412,19 @@ class Command extends \think\console\Command
                 $tag = DocBlock\Tags\PropertyRead::create($body, $typeResolver, $descriptionFactory, $context);
             }
 
+            $tags[] = $tag;
+        }
+
+        ksort($this->methods);
+
+        foreach ($this->methods as $name => $method) {
+            if (in_array($name, $methods)) {
+                continue;
+            }
+
+            $arguments = implode(', ', $method['arguments']);
+
+            $tag    = DocBlock\Tags\Method::create("static {$method['type']} {$name}({$arguments})", $typeResolver, $descriptionFactory, $context);
             $tags[] = $tag;
         }
 
@@ -443,6 +473,16 @@ class Command extends \think\console\Command
         }
     }
 
+    protected function setMethod($name, $type = '', $arguments = [])
+    {
+        $methods = array_change_key_case($this->methods, CASE_LOWER);
+        if (!isset($methods[strtolower($name)])) {
+            $this->methods[$name]              = [];
+            $this->methods[$name]['type']      = $type;
+            $this->methods[$name]['arguments'] = $arguments;
+        }
+    }
+
     protected function getReturnTypeFromDocBlock(\ReflectionMethod $reflection)
     {
         $type = null;
@@ -460,6 +500,40 @@ class Command extends \think\console\Command
 
         }
         return is_null($type) ? null : (string) $type;
+    }
+
+    /**
+     * @param ReflectionMethod $method
+     * @return array
+     */
+    protected function getParameters($method)
+    {
+        //Loop through the default values for paremeters, and make the correct output string
+        $params            = [];
+        $paramsWithDefault = [];
+        /** @var \ReflectionParameter $param */
+        foreach ($method->getParameters() as $param) {
+            $paramClass = $param->getClass();
+            $paramStr   = (!is_null($paramClass) ? '\\' . $paramClass->getName() . ' ' : '') . '$' . $param->getName();
+            $params[]   = $paramStr;
+            if ($param->isOptional() && $param->isDefaultValueAvailable()) {
+                $default = $param->getDefaultValue();
+                if (is_bool($default)) {
+                    $default = $default ? 'true' : 'false';
+                } elseif (is_array($default)) {
+                    $default = 'array()';
+                } elseif (is_null($default)) {
+                    $default = 'null';
+                } elseif (is_int($default)) {
+                    //$default = $default;
+                } else {
+                    $default = "'" . trim($default) . "'";
+                }
+                $paramStr .= " = $default";
+            }
+            $paramsWithDefault[] = $paramStr;
+        }
+        return $paramsWithDefault;
     }
 
     /**
