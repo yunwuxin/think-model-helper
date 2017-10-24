@@ -30,6 +30,7 @@ use think\model\relation\HasMany;
 use think\model\relation\HasManyThrough;
 use think\model\relation\HasOne;
 use think\model\relation\MorphMany;
+use think\model\relation\MorphOne;
 use think\model\relation\MorphTo;
 use phpDocumentor\Reflection\Types\This;
 use Symfony\Component\ClassLoader\ClassMapGenerator;
@@ -192,6 +193,10 @@ class Command extends \think\console\Command
             foreach ($columns as $column) {
                 $name = $column->getName();
 
+                if (in_array($name, (array) $properties['disuse'])) {
+                    continue;
+                }
+
                 if (in_array($name, [$properties['createTime'], $properties['updateTime']])) {
                     if (false !== strpos($dateFormat, '\\')) {
                         $type = "\\" . $dateFormat;
@@ -324,7 +329,7 @@ class Command extends \think\console\Command
 
                         if ($return instanceof Relation) {
                             $name = Loader::parseName($methodName);
-                            if ($return instanceof HasOne || $return instanceof BelongsTo) {
+                            if ($return instanceof HasOne || $return instanceof BelongsTo || $return instanceof MorphOne) {
                                 $this->setProperty($name, "\\" . $return->getModel(), true, null);
                             }
 

@@ -24,10 +24,3 @@ php think model:annotation app\\User app\\Post
 
 --overwrite [-O] 强制覆盖已有的属性注释
 ~~~
-
-### 配置
-配置文件位于`extra/model-helper.php`
-
-~~~
-locations 默认搜索的模型目录，数组，相对于APP_PATH的路径
-~~~
