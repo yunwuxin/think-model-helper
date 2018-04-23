@@ -329,13 +329,14 @@ class Command extends \think\console\Command
                         $return = $method->invoke($model);
 
                         if ($return instanceof Relation) {
+
                             $name = Loader::parseName($methodName);
                             if ($return instanceof HasOne || $return instanceof BelongsTo || $return instanceof MorphOne) {
-                                $this->setProperty($name, "\\" . $return->getModel(), true, null);
+                                $this->setProperty($name, "\\" . get_class($return->getModel()), true, null);
                             }
 
                             if ($return instanceof HasMany || $return instanceof HasManyThrough || $return instanceof BelongsToMany) {
-                                $this->setProperty($name, "\\" . "{$return->getModel()}[]", true, null);
+                                $this->setProperty($name, "\\" . get_class($return->getModel()) . "[]", true, null);
                             }
 
                             if ($return instanceof MorphTo || $return instanceof MorphMany) {
