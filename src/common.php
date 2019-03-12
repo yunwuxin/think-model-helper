@@ -9,6 +9,7 @@
 // | Author: yunwuxin <448901948@qq.com>
 // +----------------------------------------------------------------------
 
-\think\Console::addDefaultCommands([
-    \yunwuxin\model\helper\Command::class
-]);
+use think\App;
+use yunwuxin\model\helper\Service;
+
+App::service(Service::class);
