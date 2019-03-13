@@ -9,17 +9,11 @@
 namespace yunwuxin\model\helper;
 
 
-use think\App;
-use think\Console;
-
-class Service
+class Service extends \think\Service
 {
-    public function register(App $app)
+    public function boot()
     {
-        /** @var Console $console */
-        $console = $app->make(Console::class);
-
-        $console->addCommands([
+        $this->commands([
             Command::class
         ]);
     }

@@ -24,9 +24,13 @@
     "autoload": {
         "psr-4": {
             "yunwuxin\\model\\helper\\": "src"
-        },
-        "files": [
-            "src/common.php"
-        ]
+        }
+    },
+    "extra": {
+        "think": {
+            "services": [
+                "yunwuxin\\model\\helper\\Service"
+            ]
+        }
     }
 }
