@@ -9,10 +9,10 @@
         }
     ],
     "require": {
-        "topthink/framework": "5.2.*-dev",
+        "topthink/framework": "^5.2",
         "symfony/class-loader": "^2.3|^3.0",
         "phpdocumentor/reflection-docblock": "^3.1",
-        "topthink/think-helper": "^1.0"
+        "topthink/think-helper": "^3.0"
     },
     "require-dev": {
         "phpunit/phpunit": "^5.6",
