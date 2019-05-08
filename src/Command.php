@@ -10,13 +10,11 @@
 // +----------------------------------------------------------------------
 namespace yunwuxin\model\helper;
 
-use Phinx\Db\Adapter\AdapterFactory;
-use Phinx\Db\Table;
 use phpDocumentor\Reflection\DocBlock;
-use phpDocumentor\Reflection\DocBlockFactory;
 use phpDocumentor\Reflection\DocBlock\DescriptionFactory;
 use phpDocumentor\Reflection\DocBlock\Serializer as DocBlockSerializer;
 use phpDocumentor\Reflection\DocBlock\StandardTagFactory;
+use phpDocumentor\Reflection\DocBlockFactory;
 use phpDocumentor\Reflection\FqsenResolver;
 use phpDocumentor\Reflection\TypeResolver;
 use phpDocumentor\Reflection\Types\Context;
@@ -82,7 +80,6 @@ class Command extends \think\console\Command
         $this->reset = $input->getOption('reset');
 
         $this->generateDocs($model, $ignore);
-
     }
 
     /**
@@ -128,9 +125,7 @@ class Command extends \think\console\Command
                         continue;
                     }
                     $model = new $name;
-                    if ($this->supportedDatabase()) {
-                        $this->getPropertiesFromTable($name, $model);
-                    }
+                    $this->getPropertiesFromTable($name, $model);
                     $this->getPropertiesFromMethods($name, $model);
                     $this->createPhpDocs($name);
                     $ignore[] = $name;
@@ -138,41 +133,7 @@ class Command extends \think\console\Command
                     $this->output->error("Exception: " . $e->getMessage() . "\nCould not analyze class $name.");
                 }
             }
-
         }
-    }
-
-    protected function supportedDatabase()
-    {
-        return class_exists(AdapterFactory::class);
-    }
-
-    /**
-     * 获取数据表
-     * @param Model $model
-     * @return Table
-     */
-    protected function getTable(Model $model)
-    {
-        $tableName = $model->db()->getTable();
-
-        $config = $model->db()->getConnection()->getConfig();
-
-        $options = [
-            'adapter'      => $config['type'],
-            'host'         => $config['hostname'],
-            'name'         => $config['database'],
-            'user'         => $config['username'],
-            'pass'         => $config['password'],
-            'port'         => $config['hostport'],
-            'charset'      => $config['charset'],
-            'table_prefix' => $config['prefix'],
-        ];
-
-        $adapter = AdapterFactory::instance()->getAdapter($options['adapter'], $options);
-
-        return new Table($tableName, [], $adapter);
-
     }
 
     /**
@@ -184,15 +145,14 @@ class Command extends \think\console\Command
     {
         $properties = (new ReflectionClass($class))->getDefaultProperties();
 
-        $dateFormat = empty($properties['dateFormat']) ? $model->db()->getConnection()->getConfig()['datetime_format'] : $properties['dateFormat'];
-
-        $table = $this->getTable($model);
-
-        $columns = $table->getColumns();
-
-        if ($columns) {
-            foreach ($columns as $column) {
-                $name = $column->getName();
+        $dateFormat = empty($properties['dateFormat']) ? $this->app->config->get('database.datetime_format') : $properties['dateFormat'];
+        try {
+            $fields = $model->getFields();
+        } catch (\Exception $e) {
+            $this->output->warning($e->getMessage());
+        }
+        if (!empty($fields)) {
+            foreach ($fields as $name => $field) {
 
                 if (in_array($name, (array) $properties['disuse'])) {
                     continue;
@@ -235,13 +195,29 @@ class Command extends \think\console\Command
                             if (false !== strpos($type, '\\')) {
                                 $type = "\\" . $type;
                             }
-
                     }
                 } else {
-                    $type = $column->getType();
+
+                    if (!preg_match('/^([\w]+)(\(([\d]+)*(,([\d]+))*\))*(.+)*$/', $field['type'], $matches)) {
+                        throw new \RuntimeException('Column type ' . $field['type'] . ' is not supported');
+                    }
+                    $limit     = null;
+                    $precision = null;
+                    $type      = $matches[1];
+                    if (count($matches) > 2) {
+                        $limit = $matches[3] ? (int) $matches[3] : null;
+                    }
+
+                    if ($type === 'tinyint' && $limit === 1) {
+                        $type = 'boolean';
+                    }
+
                     switch ($type) {
-                        case 'string':
+                        case 'varchar':
                         case 'char':
+                        case 'tinytext':
+                        case 'mediumtext':
+                        case 'longtext':
                         case 'text':
                         case 'timestamp':
                         case 'date':
@@ -249,11 +225,15 @@ class Command extends \think\console\Command
                         case 'guid':
                         case 'datetimetz':
                         case 'datetime':
+                        case 'set':
+                        case 'enum':
                             $type = 'string';
                             break;
-                        case 'integer':
-                        case 'biginteger':
+                        case 'tinyint':
                         case 'smallint':
+                        case 'mediumint':
+                        case 'int':
+                        case 'bigint':
                             $type = 'integer';
                             break;
                         case 'decimal':
@@ -268,9 +248,8 @@ class Command extends \think\console\Command
                             break;
                     }
                 }
-                $comment = $column->getComment();
+                $comment = $field['comment'];
                 $this->setProperty($name, $type, true, true, $comment);
-
             }
         }
     }
@@ -291,9 +270,9 @@ class Command extends \think\console\Command
 
                 $methodName = $method->getName();
                 if (Str::startsWith($methodName, 'get') && Str::endsWith(
-                    $methodName,
-                    'Attr'
-                ) && 'getAttr' !== $methodName) {
+                        $methodName,
+                        'Attr'
+                    ) && 'getAttr' !== $methodName) {
                     //获取器
                     $name = App::parseName(substr($methodName, 3, -4));
 
@@ -302,15 +281,14 @@ class Command extends \think\console\Command
                         $this->setProperty($name, $type, true, null);
                     }
                 } elseif (Str::startsWith($methodName, 'set') && Str::endsWith(
-                    $methodName,
-                    'Attr'
-                ) && 'setAttr' !== $methodName) {
+                        $methodName,
+                        'Attr'
+                    ) && 'setAttr' !== $methodName) {
                     //修改器
                     $name = App::parseName(substr($methodName, 3, -4));
                     if (!empty($name)) {
                         $this->setProperty($name, null, null, true);
                     }
-
                 } elseif (Str::startsWith($methodName, 'scope')) {
                     //查询范围
                     $name = App::parseName(substr($methodName, 5), 1, false);
@@ -320,7 +298,6 @@ class Command extends \think\console\Command
                         array_shift($args);
                         $this->setMethod($name, "\\think\\db\\Query", $args);
                     }
-
                 } elseif ($method->isPublic() && $method->getNumberOfRequiredParameters() == 0) {
                     //关联对象
                     try {
@@ -347,7 +324,6 @@ class Command extends \think\console\Command
                 }
             }
         }
-
     }
 
     /**
@@ -446,7 +422,7 @@ class Command extends \think\console\Command
             $contents = str_replace($originalDoc, $docComment, $contents);
         } else {
             $needle  = "class {$classname}";
-            $replace = "{$docComment}\nclass {$classname}";
+            $replace = "{$docComment}" . PHP_EOL . "class {$classname}";
             $pos     = strpos($contents, $needle);
             if (false !== $pos) {
                 $contents = substr_replace($contents, $replace, $pos, strlen($needle));
@@ -455,7 +431,6 @@ class Command extends \think\console\Command
         if (file_put_contents($filename, $contents)) {
             $this->output->info('Written new phpDocBlock to ' . $filename);
         }
-
     }
 
     protected function setProperty($name, $type = null, $read = null, $write = null, $comment = '')
@@ -549,7 +524,7 @@ class Command extends \think\console\Command
     {
         $models = [];
         foreach ($this->dirs as $dir) {
-            $dir = $this->app->getRootPath() . $dir;
+            $dir = $this->app->getBasePath() . $dir;
             if (file_exists($dir)) {
                 foreach (ClassMapGenerator::createMap($dir) as $model => $path) {
                     $models[] = $model;
