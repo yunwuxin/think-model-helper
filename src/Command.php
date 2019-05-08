@@ -13,17 +13,27 @@ namespace yunwuxin\model\helper;
 use Phinx\Db\Adapter\AdapterFactory;
 use Phinx\Db\Table;
 use phpDocumentor\Reflection\DocBlock;
-use phpDocumentor\Reflection\DocBlock\DescriptionFactory;
-use phpDocumentor\Reflection\DocBlock\StandardTagFactory;
 use phpDocumentor\Reflection\DocBlockFactory;
+use phpDocumentor\Reflection\DocBlock\DescriptionFactory;
+use phpDocumentor\Reflection\DocBlock\Serializer as DocBlockSerializer;
+use phpDocumentor\Reflection\DocBlock\StandardTagFactory;
 use phpDocumentor\Reflection\FqsenResolver;
 use phpDocumentor\Reflection\TypeResolver;
 use phpDocumentor\Reflection\Types\Context;
-use phpDocumentor\Reflection\DocBlock\Serializer as DocBlockSerializer;
 use phpDocumentor\Reflection\Types\Self_;
 use phpDocumentor\Reflection\Types\Static_;
+use phpDocumentor\Reflection\Types\This;
 use ReflectionClass;
 use ReflectionMethod;
+use Symfony\Component\ClassLoader\ClassMapGenerator;
+use think\App;
+use think\console\Input;
+use think\console\input\Argument;
+use think\console\input\Option;
+use think\console\Output;
+use think\helper\Str;
+use think\Model;
+use think\model\Relation;
 use think\model\relation\BelongsTo;
 use think\model\relation\BelongsToMany;
 use think\model\relation\HasMany;
@@ -32,16 +42,6 @@ use think\model\relation\HasOne;
 use think\model\relation\MorphMany;
 use think\model\relation\MorphOne;
 use think\model\relation\MorphTo;
-use phpDocumentor\Reflection\Types\This;
-use Symfony\Component\ClassLoader\ClassMapGenerator;
-use think\console\Input;
-use think\console\input\Argument;
-use think\console\input\Option;
-use think\console\Output;
-use think\helper\Str;
-use think\Loader;
-use think\Model;
-use think\model\Relation;
 
 class Command extends \think\console\Command
 {
@@ -166,7 +166,7 @@ class Command extends \think\console\Command
             'pass'         => $config['password'],
             'port'         => $config['hostport'],
             'charset'      => $config['charset'],
-            'table_prefix' => $config['prefix']
+            'table_prefix' => $config['prefix'],
         ];
 
         $adapter = AdapterFactory::instance()->getAdapter($options['adapter'], $options);
@@ -291,31 +291,29 @@ class Command extends \think\console\Command
 
                 $methodName = $method->getName();
                 if (Str::startsWith($methodName, 'get') && Str::endsWith(
-                        $methodName,
-                        'Attr'
-                    ) && $methodName !== 'getAttr'
-                ) {
+                    $methodName,
+                    'Attr'
+                ) && 'getAttr' !== $methodName) {
                     //获取器
-                    $name = Loader::parseName(substr($methodName, 3, -4));
+                    $name = App::parseName(substr($methodName, 3, -4));
 
                     if (!empty($name)) {
                         $type = $this->getReturnTypeFromDocBlock($method);
                         $this->setProperty($name, $type, true, null);
                     }
                 } elseif (Str::startsWith($methodName, 'set') && Str::endsWith(
-                        $methodName,
-                        'Attr'
-                    ) && $methodName !== 'setAttr'
-                ) {
+                    $methodName,
+                    'Attr'
+                ) && 'setAttr' !== $methodName) {
                     //修改器
-                    $name = Loader::parseName(substr($methodName, 3, -4));
+                    $name = App::parseName(substr($methodName, 3, -4));
                     if (!empty($name)) {
                         $this->setProperty($name, null, null, true);
                     }
 
                 } elseif (Str::startsWith($methodName, 'scope')) {
                     //查询范围
-                    $name = Loader::parseName(substr($methodName, 5), 1, false);
+                    $name = App::parseName(substr($methodName, 5), 1, false);
 
                     if (!empty($name)) {
                         $args = $this->getParameters($method);
@@ -330,7 +328,7 @@ class Command extends \think\console\Command
 
                         if ($return instanceof Relation) {
 
-                            $name = Loader::parseName($methodName);
+                            $name = App::parseName($methodName);
                             if ($return instanceof HasOne || $return instanceof BelongsTo || $return instanceof MorphOne) {
                                 $this->setProperty($name, "\\" . get_class($return->getModel()), true, null);
                             }
@@ -450,7 +448,7 @@ class Command extends \think\console\Command
             $needle  = "class {$classname}";
             $replace = "{$docComment}\nclass {$classname}";
             $pos     = strpos($contents, $needle);
-            if ($pos !== false) {
+            if (false !== $pos) {
                 $contents = substr_replace($contents, $replace, $pos, strlen($needle));
             }
         }
@@ -469,13 +467,13 @@ class Command extends \think\console\Command
             $this->properties[$name]['write']   = false;
             $this->properties[$name]['comment'] = (string) $comment;
         }
-        if ($type !== null) {
+        if (null !== $type) {
             $this->properties[$name]['type'] = $type;
         }
-        if ($read !== null) {
+        if (null !== $read) {
             $this->properties[$name]['read'] = $read;
         }
-        if ($write !== null) {
+        if (null !== $write) {
             $this->properties[$name]['write'] = $write;
         }
     }
@@ -551,7 +549,7 @@ class Command extends \think\console\Command
     {
         $models = [];
         foreach ($this->dirs as $dir) {
-            $dir = APP_PATH . '/' . $dir;
+            $dir = $this->app->getRootPath() . $dir;
             if (file_exists($dir)) {
                 foreach (ClassMapGenerator::createMap($dir) as $model => $path) {
                     $models[] = $model;
