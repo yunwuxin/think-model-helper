@@ -197,9 +197,8 @@ class Command extends \think\console\Command
                             }
                     }
                 } else {
-
                     if (!preg_match('/^([\w]+)(\(([\d]+)*(,([\d]+))*\))*(.+)*$/', $field['type'], $matches)) {
-                        throw new \RuntimeException('Column type ' . $field['type'] . ' is not supported');
+                        continue;
                     }
                     $limit     = null;
                     $precision = null;
