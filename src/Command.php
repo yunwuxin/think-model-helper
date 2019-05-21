@@ -14,25 +14,17 @@ use Phinx\Db\Adapter\AdapterFactory;
 use Phinx\Db\Table;
 use phpDocumentor\Reflection\DocBlock;
 use phpDocumentor\Reflection\DocBlock\DescriptionFactory;
+use phpDocumentor\Reflection\DocBlock\Serializer as DocBlockSerializer;
 use phpDocumentor\Reflection\DocBlock\StandardTagFactory;
 use phpDocumentor\Reflection\DocBlockFactory;
 use phpDocumentor\Reflection\FqsenResolver;
 use phpDocumentor\Reflection\TypeResolver;
 use phpDocumentor\Reflection\Types\Context;
-use phpDocumentor\Reflection\DocBlock\Serializer as DocBlockSerializer;
 use phpDocumentor\Reflection\Types\Self_;
 use phpDocumentor\Reflection\Types\Static_;
+use phpDocumentor\Reflection\Types\This;
 use ReflectionClass;
 use ReflectionMethod;
-use think\model\relation\BelongsTo;
-use think\model\relation\BelongsToMany;
-use think\model\relation\HasMany;
-use think\model\relation\HasManyThrough;
-use think\model\relation\HasOne;
-use think\model\relation\MorphMany;
-use think\model\relation\MorphOne;
-use think\model\relation\MorphTo;
-use phpDocumentor\Reflection\Types\This;
 use Symfony\Component\ClassLoader\ClassMapGenerator;
 use think\console\Input;
 use think\console\input\Argument;
@@ -42,6 +34,14 @@ use think\helper\Str;
 use think\Loader;
 use think\Model;
 use think\model\Relation;
+use think\model\relation\BelongsTo;
+use think\model\relation\BelongsToMany;
+use think\model\relation\HasMany;
+use think\model\relation\HasManyThrough;
+use think\model\relation\HasOne;
+use think\model\relation\MorphMany;
+use think\model\relation\MorphOne;
+use think\model\relation\MorphTo;
 
 class Command extends \think\console\Command
 {
@@ -82,7 +82,6 @@ class Command extends \think\console\Command
         $this->reset = $input->getOption('reset');
 
         $this->generateDocs($model, $ignore);
-
     }
 
     /**
@@ -138,7 +137,6 @@ class Command extends \think\console\Command
                     $this->output->error("Exception: " . $e->getMessage() . "\nCould not analyze class $name.");
                 }
             }
-
         }
     }
 
@@ -166,13 +164,12 @@ class Command extends \think\console\Command
             'pass'         => $config['password'],
             'port'         => $config['hostport'],
             'charset'      => $config['charset'],
-            'table_prefix' => $config['prefix']
+            'table_prefix' => $config['prefix'],
         ];
 
         $adapter = AdapterFactory::instance()->getAdapter($options['adapter'], $options);
 
         return new Table($tableName, [], $adapter);
-
     }
 
     /**
@@ -235,7 +232,6 @@ class Command extends \think\console\Command
                             if (false !== strpos($type, '\\')) {
                                 $type = "\\" . $type;
                             }
-
                     }
                 } else {
                     $type = $column->getType();
@@ -270,7 +266,6 @@ class Command extends \think\console\Command
                 }
                 $comment = $column->getComment();
                 $this->setProperty($name, $type, true, true, $comment);
-
             }
         }
     }
@@ -312,7 +307,6 @@ class Command extends \think\console\Command
                     if (!empty($name)) {
                         $this->setProperty($name, null, null, true);
                     }
-
                 } elseif (Str::startsWith($methodName, 'scope')) {
                     //查询范围
                     $name = Loader::parseName(substr($methodName, 5), 1, false);
@@ -322,7 +316,6 @@ class Command extends \think\console\Command
                         array_shift($args);
                         $this->setMethod($name, "\\think\\db\\Query", $args);
                     }
-
                 } elseif ($method->isPublic() && $method->getNumberOfRequiredParameters() == 0) {
                     //关联对象
                     try {
@@ -349,7 +342,6 @@ class Command extends \think\console\Command
                 }
             }
         }
-
     }
 
     /**
@@ -457,7 +449,6 @@ class Command extends \think\console\Command
         if (file_put_contents($filename, $contents)) {
             $this->output->info('Written new phpDocBlock to ' . $filename);
         }
-
     }
 
     protected function setProperty($name, $type = null, $read = null, $write = null, $comment = '')
@@ -551,7 +542,7 @@ class Command extends \think\console\Command
     {
         $models = [];
         foreach ($this->dirs as $dir) {
-            $dir = APP_PATH . '/' . $dir;
+            $dir = app()->getAppPath() . '/' . $dir;
             if (file_exists($dir)) {
                 foreach (ClassMapGenerator::createMap($dir) as $model => $path) {
                     $models[] = $model;
