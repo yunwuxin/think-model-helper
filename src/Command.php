@@ -273,7 +273,7 @@ class Command extends \think\console\Command
                         'Attr'
                     ) && 'getAttr' !== $methodName) {
                     //获取器
-                    $name = App::parseName(substr($methodName, 3, -4));
+                    $name = Str::snake(substr($methodName, 3, -4));
 
                     if (!empty($name)) {
                         $type = $this->getReturnTypeFromDocBlock($method);
@@ -284,13 +284,13 @@ class Command extends \think\console\Command
                         'Attr'
                     ) && 'setAttr' !== $methodName) {
                     //修改器
-                    $name = App::parseName(substr($methodName, 3, -4));
+                    $name = Str::snake(substr($methodName, 3, -4));
                     if (!empty($name)) {
                         $this->setProperty($name, null, null, true);
                     }
                 } elseif (Str::startsWith($methodName, 'scope')) {
                     //查询范围
-                    $name = App::parseName(substr($methodName, 5), 1, false);
+                    $name = Str::camel(substr($methodName, 5));
 
                     if (!empty($name)) {
                         $args = $this->getParameters($method);
@@ -304,7 +304,7 @@ class Command extends \think\console\Command
 
                         if ($return instanceof Relation) {
 
-                            $name = App::parseName($methodName);
+                            $name = Str::snake($methodName);
                             if ($return instanceof HasOne || $return instanceof BelongsTo || $return instanceof MorphOne) {
                                 $this->setProperty($name, "\\" . get_class($return->getModel()), true, null);
                             }
